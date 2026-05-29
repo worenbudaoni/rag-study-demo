@@ -31,3 +31,14 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Claude Code
+.claude/
+
+# Temp files
+*.tmp
+*.temp
+
+# User documents (keep .gitkeep in tracking)
+data/docs/*.pdf
+data/docs/*.txt
