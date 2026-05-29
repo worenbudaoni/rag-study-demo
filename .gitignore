@@ -41,5 +41,4 @@ docs/superpowers/
 *.temp
 
 # User documents
-data/docs/*.pdf
-data/docs/*.txt
+data/docs

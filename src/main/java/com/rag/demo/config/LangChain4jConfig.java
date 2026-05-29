@@ -4,6 +4,7 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import dev.langchain4j.model.openai.OpenAiTokenizer;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
@@ -105,6 +106,7 @@ public class LangChain4jConfig {
                 .modelName(chatModelName)
                 .temperature(temperature)
                 .timeout(Duration.ofSeconds(60))
+                .tokenizer(new OpenAiTokenizer("gpt-3.5-turbo"))
                 .build();
     }
 
@@ -116,6 +118,7 @@ public class LangChain4jConfig {
                 .modelName(chatModelName)
                 .temperature(temperature)
                 .timeout(Duration.ofSeconds(60))
+                .tokenizer(new OpenAiTokenizer("gpt-3.5-turbo"))
                 .build();
     }
 

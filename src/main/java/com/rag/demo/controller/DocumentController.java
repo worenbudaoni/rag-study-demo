@@ -27,8 +27,16 @@ public class DocumentController {
         }
 
         String originalName = file.getOriginalFilename();
-        if (originalName == null || (!originalName.toLowerCase().endsWith(".pdf")
-                && !originalName.toLowerCase().endsWith(".txt"))) {
+        if (originalName == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        String ext = originalName.toLowerCase();
+        if (!ext.endsWith(".pdf") && !ext.endsWith(".txt") && !ext.endsWith(".md")
+                && !ext.endsWith(".csv") && !ext.endsWith(".json") && !ext.endsWith(".xml")
+                && !ext.endsWith(".xlsx") && !ext.endsWith(".xls")
+                && !ext.endsWith(".docx")
+                && !ext.endsWith(".pptx")
+                && !ext.endsWith(".html") && !ext.endsWith(".htm")) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -49,5 +57,10 @@ public class DocumentController {
     @GetMapping
     public ResponseEntity<List<String>> listDocuments() {
         return ResponseEntity.ok(documentIngestionService.getIngestedDocuments());
+    }
+
+    @PostMapping("/scan")
+    public ResponseEntity<List<DocumentInfo>> scanDocuments() {
+        return ResponseEntity.ok(documentIngestionService.scan());
     }
 }
