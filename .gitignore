@@ -40,6 +40,6 @@ docs/superpowers/
 *.tmp
 *.temp
 
-# User documents (keep .gitkeep in tracking)
+# User documents
 data/docs/*.pdf
 data/docs/*.txt
