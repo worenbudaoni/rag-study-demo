@@ -1,6 +1,590 @@
-<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 智能问答</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; color: #333; }
+
+  /* Header */
+  .header {
+    background: #1677ff;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header-btn {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.35);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .header-btn:hover { background: rgba(255,255,255,0.35); }
+
+  /* Chat container */
+  .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding-top: 56px;
+    padding-bottom: 64px;
+  }
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+  /* Bubbles */
+  .message {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+  .message.user {
+    align-self: flex-end;
+    background: #1677ff;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .message.assistant {
+    align-self: flex-start;
+    background: #fff;
+    color: #333;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .message.error {
+    align-self: flex-start;
+    background: #fff1f0;
+    color: #cf1322;
+    border: 1px solid #ffa39e;
+    border-bottom-left-radius: 4px;
+  }
+
+  /* Streaming cursor */
+  .cursor-blink {
+    display: inline-block;
+    width: 2px;
+    height: 16px;
+    background: #333;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 0.8s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Input bar */
+  .input-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid #e8e8e8;
+    padding: 10px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    z-index: 100;
+  }
+  .input-bar textarea {
+    flex: 1;
+    border: 1px solid #d9d9d9;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 15px;
+    outline: none;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.4;
+    max-height: 120px;
+    transition: border-color 0.2s;
+  }
+  .input-bar textarea:focus { border-color: #1677ff; }
+  .input-bar button {
+    background: #1677ff;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .input-bar button:hover { background: #4096ff; }
+  .input-bar button:disabled { background: #a0c4ff; cursor: not-allowed; }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    font-size: 15px;
+    gap: 8px;
+  }
+  .empty-state .icon { font-size: 48px; opacity: 0.4; margin-bottom: 8px; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .modal-header h2 { font-size: 17px; font-weight: 600; }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: #999;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .modal-close:hover { color: #333; }
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .modal-body h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #555;
+  }
+
+  /* Upload area */
+  .upload-area {
+    border: 2px dashed #d9d9d9;
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 20px;
+    color: #888;
+    font-size: 14px;
+  }
+  .upload-area:hover { border-color: #1677ff; background: #f6fbff; }
+  .upload-area.dragover { border-color: #1677ff; background: #e6f4ff; }
+  .upload-area input[type="file"] { display: none; }
+
+  /* Document list */
+  .doc-list { list-style: none; }
+  .doc-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .doc-list li .doc-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .doc-list .doc-status {
+    font-size: 12px;
+    color: #999;
+    margin-left: 8px;
+  }
+  .doc-list-empty {
+    text-align: center;
+    color: #bbb;
+    padding: 20px 0;
+    font-size: 14px;
+  }
+  .doc-error {
+    color: #cf1322;
+    font-size: 13px;
+    margin-top: 8px;
+    display: none;
+  }
+  .doc-error.visible { display: block; }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    top: 68px;
+    right: 16px;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .toast {
+    background: #333;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    animation: toast-in 0.3s ease;
+    max-width: 320px;
+  }
+  .toast.success { background: #52c41a; }
+  .toast.error { background: #ff4d4f; }
+  .toast.info { background: #1677ff; }
+  @keyframes toast-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .message { max-width: 92%; }
+    .modal { width: 95%; }
+  }
+</style>
+</head>
 <body>
-<h1>hello word!!!</h1>
-<p>this is a html page</p>
+
+<!-- Header -->
+<header class="header">
+  <h1>RAG 智能问答</h1>
+  <button class="header-btn" onclick="openDocModal()">+ 文档管理</button>
+</header>
+
+<!-- Chat -->
+<div class="chat-container">
+  <div class="messages" id="messages">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">&#128161;</div>
+      <div>输入问题开始对话</div>
+    </div>
+  </div>
+</div>
+
+<!-- Input bar -->
+<div class="input-bar">
+  <textarea id="questionInput" rows="1" placeholder="输入您的问题..." onkeydown="onInputKeydown(event)"></textarea>
+  <button id="sendBtn" onclick="sendMessage()">发送</button>
+</div>
+
+<!-- Document modal -->
+<div class="modal-overlay" id="docModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>文档管理</h2>
+      <button class="modal-close" onclick="closeDocModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <h3>上传文档</h3>
+      <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+        <div>点击选择文件或拖拽到此处</div>
+        <div style="font-size:12px;margin-top:4px;color:#bbb;">支持 PDF、TXT 格式</div>
+        <input type="file" id="fileInput" accept=".pdf,.txt" onchange="onFileSelected(event)">
+      </div>
+      <div class="doc-error" id="uploadError"></div>
+
+      <h3>已入库文档</h3>
+      <ul class="doc-list" id="docList">
+        <li class="doc-list-empty">暂无文档</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ========== Toast ========== */
+function toast(message, type) {
+  type = type || 'info';
+  var container = document.getElementById('toastContainer');
+  var el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(function() { el.remove(); }, 3000);
+}
+
+/* ========== Chat ========== */
+var isStreaming = false;
+
+function onInputKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function addMessage(role, content) {
+  var container = document.getElementById('messages');
+  var emptyState = document.getElementById('emptyState');
+  if (emptyState) emptyState.remove();
+
+  var div = document.createElement('div');
+  div.className = 'message ' + role;
+  div.textContent = content;
+  container.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function scrollToBottom() {
+  var container = document.getElementById('messages');
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendMessage() {
+  if (isStreaming) return;
+  var input = document.getElementById('questionInput');
+  var question = input.value.trim();
+  if (!question) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  addMessage('user', question);
+  isStreaming = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  var assistantEl = addMessage('assistant', '');
+  var cursorSpan = document.createElement('span');
+  cursorSpan.className = 'cursor-blink';
+  assistantEl.appendChild(cursorSpan);
+
+  var accumulated = '';
+
+  fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: question })
+  }).then(function(response) {
+    if (!response.ok) {
+      throw new Error('请求失败 (' + response.status + ')');
+    }
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    function read() {
+      reader.read().then(function(result) {
+        if (result.done) {
+          cursorSpan.remove();
+          isStreaming = false;
+          document.getElementById('sendBtn').disabled = false;
+          return;
+        }
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (line.startsWith('data: ')) {
+            var data = line.substring(6).trim();
+            if (data === '[DONE]') {
+              cursorSpan.remove();
+              isStreaming = false;
+              document.getElementById('sendBtn').disabled = false;
+              return;
+            }
+            try {
+              var parsed = JSON.parse(data);
+              if (parsed.token) {
+                accumulated += parsed.token;
+                // update text before cursor
+                assistantEl.textContent = accumulated;
+                assistantEl.appendChild(cursorSpan);
+                scrollToBottom();
+              }
+            } catch(e) {
+              // Skip unparseable lines
+            }
+          }
+        }
+        read();
+      }).catch(function(err) {
+        cursorSpan.remove();
+        assistantEl.textContent = accumulated + '\n[错误: ' + err.message + ']';
+        assistantEl.className = 'message error';
+        isStreaming = false;
+        document.getElementById('sendBtn').disabled = false;
+      });
+    }
+    read();
+  }).catch(function(err) {
+    cursorSpan.remove();
+    assistantEl.textContent = '请求失败: ' + err.message;
+    assistantEl.className = 'message error';
+    isStreaming = false;
+    document.getElementById('sendBtn').disabled = false;
+  });
+}
+
+/* ========== Auto-resize textarea ========== */
+document.getElementById('questionInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+/* ========== Document modal ========== */
+function openDocModal() {
+  document.getElementById('docModal').classList.add('open');
+  loadDocuments();
+}
+
+function closeDocModal() {
+  document.getElementById('docModal').classList.remove('open');
+}
+
+// Click overlay to close
+document.getElementById('docModal').addEventListener('click', function(e) {
+  if (e.target === this) closeDocModal();
+});
+
+/* ========== File upload ========== */
+function onFileSelected(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  uploadFile(file);
+  event.target.value = '';
+}
+
+// Drag and drop
+var uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  this.classList.add('dragover');
+});
+uploadArea.addEventListener('dragleave', function() {
+  this.classList.remove('dragover');
+});
+uploadArea.addEventListener('drop', function(e) {
+  e.preventDefault();
+  this.classList.remove('dragover');
+  var file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+
+function uploadFile(file) {
+  var validTypes = ['.pdf', '.txt'];
+  var ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+  if (validTypes.indexOf(ext) === -1) {
+    showUploadError('仅支持 PDF 和 TXT 格式');
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    showUploadError('文件大小不能超过 20MB');
+    return;
+  }
+  hideUploadError();
+
+  var formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/documents/upload', {
+    method: 'POST',
+    body: formData
+  }).then(function(response) {
+    if (!response.ok) {
+      return response.text().then(function(text) {
+        throw new Error(text || '上传失败 (' + response.status + ')');
+      });
+    }
+    return response.json();
+  }).then(function(docInfo) {
+    toast('文档 "' + docInfo.documentName + '" 上传成功（' + docInfo.chunks + ' 个分块）', 'success');
+    loadDocuments();
+  }).catch(function(err) {
+    showUploadError('上传失败: ' + err.message);
+    toast('文档上传失败', 'error');
+  });
+}
+
+function showUploadError(msg) {
+  var el = document.getElementById('uploadError');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideUploadError() {
+  document.getElementById('uploadError').classList.remove('visible');
+}
+
+/* ========== List documents ========== */
+function loadDocuments() {
+  var list = document.getElementById('docList');
+
+  fetch('/api/documents')
+    .then(function(response) {
+      if (!response.ok) throw new Error('获取文档列表失败');
+      return response.json();
+    })
+    .then(function(docs) {
+      if (!docs || docs.length === 0) {
+        list.innerHTML = '<li class="doc-list-empty">暂无文档</li>';
+        return;
+      }
+      list.innerHTML = docs.map(function(doc) {
+        return '<li><span class="doc-name">' + escapeHtml(doc) + '</span><span class="doc-status">&#10003; 已入库</span></li>';
+      }).join('');
+    })
+    .catch(function(err) {
+      list.innerHTML = '<li class="doc-list-empty">加载失败: ' + escapeHtml(err.message) + '</li>';
+    });
+}
+
+/* ========== Utilities ========== */
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+</script>
 </body>
 </html>
