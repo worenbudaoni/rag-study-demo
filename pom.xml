@@ -72,6 +72,14 @@
             <artifactId>langchain4j-document-parser-apache-pdfbox</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
+
+        <!-- Chroma vector store (alternative to Milvus, for medium projects) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-chroma</artifactId>
+            <version>${langchain4j.version}</version>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
